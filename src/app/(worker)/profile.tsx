@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -6,12 +7,12 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRole } from '@/contexts/RoleContext';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { Avatar, Button, StatusBadge, SupabaseConnectionCard } from '@/components';
+import { useRole } from '@/contexts/RoleContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -30,18 +31,16 @@ const MenuItem: React.FC<MenuItemProps> = ({
 }) => (
   <>
     <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
       style={({ pressed }) => [
         styles.menuItem,
         pressed && styles.menuItemPressed,
       ]}
+      onPress={onPress}
     >
       <View style={styles.menuLeft}>
         <Ionicons name={icon} size={20} color={Colors.textSecondary} />
         <Text style={styles.menuTitle}>{title}</Text>
       </View>
-
       <View style={styles.menuRight}>
         {badge ? (
           <View style={styles.badge}>
@@ -58,8 +57,21 @@ const MenuItem: React.FC<MenuItemProps> = ({
 export default function WorkerProfileScreen() {
   const router = useRouter();
   const { switchToSeeker } = useRole();
+  const { user, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
 
-  const skills = ['Residential Wiring', 'Panel Upgrades', 'Circuit Breakers', 'Outdoor Fixtures'];
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  const displayName = user?.email ? user.email.split('@')[0] : 'Mario Batumbakal';
+  const displayEmail = user?.email || 'mario.worker@example.com';
+  const skills = ['Plumbing', 'Electrical', 'Appliance Repair', 'Pipe Fitting'];
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -67,10 +79,10 @@ export default function WorkerProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Profile Card */}
+        {/* Worker Profile Header */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <Avatar name="Reynaldo Cruz" size="xl" isVerified />
+            <Avatar name={displayName} size="xl" isVerified />
             <View style={styles.editPencilBadge}>
               <Ionicons name="pencil" size={12} color={Colors.textPrimary} />
             </View>
@@ -78,21 +90,21 @@ export default function WorkerProfileScreen() {
 
           <View style={styles.profileInfo}>
             <View style={styles.nameBadgeRow}>
-              <Text style={styles.userName}>Reynaldo Cruz</Text>
-              <StatusBadge label="Verified" status="success" size="sm" showDot />
+              <Text style={styles.userName}>{displayName}</Text>
+              <StatusBadge label="Verified Worker" status="success" size="sm" showDot />
             </View>
-            <Text style={styles.userRole}>Master Electrician • Purok 2, Tinago</Text>
-            <Text style={styles.userPhone}>0918-987-6543 • Member since 2024</Text>
+            <Text style={styles.userRole}>Master Plumber & Electrician • Purok 4</Text>
+            <Text style={styles.userPhone}>{displayEmail}</Text>
           </View>
         </View>
 
-        {/* Skills Tag Section */}
+        {/* Skills & Badges */}
         <View style={styles.skillsSection}>
           <Text style={styles.skillsHeading}>Verified Skills & Trades</Text>
           <View style={styles.skillsRow}>
             {skills.map((skill) => (
               <View key={skill} style={styles.skillPill}>
-                <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                <Ionicons name="shield-checkmark" size={12} color={Colors.success} />
                 <Text style={styles.skillPillText}>{skill}</Text>
               </View>
             ))}
@@ -119,6 +131,12 @@ export default function WorkerProfileScreen() {
             onPress={switchToSeeker}
             leftIcon={<Ionicons name="swap-horizontal" size={18} color={Colors.textPrimary} />}
           />
+        </View>
+
+        {/* Section: Backend & Database Connection */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeading}>Backend Connection</Text>
+          <SupabaseConnectionCard />
         </View>
 
         {/* Section: Worker Management */}
@@ -177,6 +195,21 @@ export default function WorkerProfileScreen() {
               onPress={() => {}}
             />
           </View>
+        </View>
+
+        {/* Sign Out Button */}
+        <View style={styles.signOutContainer}>
+          <Button
+            title={signingOut ? 'Signing Out...' : 'Sign Out'}
+            variant="outline"
+            size="md"
+            loading={signingOut}
+            onPress={handleSignOut}
+            fullWidth
+            leftIcon={<Ionicons name="log-out-outline" size={18} color={Colors.error} />}
+            textStyle={{ color: Colors.error }}
+            style={{ borderColor: Colors.errorBorder }}
+          />
         </View>
 
         {/* Footer */}
@@ -377,6 +410,10 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.divider,
     marginLeft: 36,
+  },
+  signOutContainer: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   footer: {
     marginTop: Spacing.xxl,

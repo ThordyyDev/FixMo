@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -6,12 +7,12 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRole } from '@/contexts/RoleContext';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { Avatar, Button, SupabaseConnectionCard } from '@/components';
+import { useRole } from '@/contexts/RoleContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -30,18 +31,16 @@ const MenuItem: React.FC<MenuItemProps> = ({
 }) => (
   <>
     <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
       style={({ pressed }) => [
         styles.menuItem,
         pressed && styles.menuItemPressed,
       ]}
+      onPress={onPress}
     >
       <View style={styles.menuLeft}>
         <Ionicons name={icon} size={20} color={Colors.textSecondary} />
         <Text style={styles.menuTitle}>{title}</Text>
       </View>
-
       <View style={styles.menuRight}>
         {badge ? (
           <View style={styles.badge}>
@@ -58,6 +57,20 @@ const MenuItem: React.FC<MenuItemProps> = ({
 export default function SeekerProfileScreen() {
   const router = useRouter();
   const { switchToWorker } = useRole();
+  const { user, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  const displayName = user?.email ? user.email.split('@')[0] : 'Juan Dela Cruz';
+  const displayEmail = user?.email || 'juan.delacruz@example.com';
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -68,16 +81,16 @@ export default function SeekerProfileScreen() {
         {/* Profile Card */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <Avatar name="Juan Dela Cruz" size="xl" isVerified />
+            <Avatar name={displayName} size="xl" isVerified />
             <View style={styles.editPencilBadge}>
               <Ionicons name="pencil" size={12} color={Colors.textPrimary} />
             </View>
           </View>
 
           <View style={styles.profileInfo}>
-            <Text style={styles.userName}>Juan Dela Cruz</Text>
+            <Text style={styles.userName}>{displayName}</Text>
             <Text style={styles.userRole}>Service Seeker • Purok 2, Tinago</Text>
-            <Text style={styles.userPhone}>0917-123-4567</Text>
+            <Text style={styles.userPhone}>{displayEmail}</Text>
           </View>
         </View>
 
@@ -101,6 +114,12 @@ export default function SeekerProfileScreen() {
             onPress={switchToWorker}
             leftIcon={<Ionicons name="swap-horizontal" size={18} color={Colors.textInverse} />}
           />
+        </View>
+
+        {/* Section: Backend & Database Connection */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeading}>Backend Connection</Text>
+          <SupabaseConnectionCard />
         </View>
 
         {/* Section: Account Settings */}
@@ -158,6 +177,21 @@ export default function SeekerProfileScreen() {
               onPress={() => {}}
             />
           </View>
+        </View>
+
+        {/* Sign Out Button */}
+        <View style={styles.signOutContainer}>
+          <Button
+            title={signingOut ? 'Signing Out...' : 'Sign Out'}
+            variant="outline"
+            size="md"
+            loading={signingOut}
+            onPress={handleSignOut}
+            fullWidth
+            leftIcon={<Ionicons name="log-out-outline" size={18} color={Colors.error} />}
+            textStyle={{ color: Colors.error }}
+            style={{ borderColor: Colors.errorBorder }}
+          />
         </View>
 
         {/* Footer */}
@@ -315,6 +349,10 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.divider,
     marginLeft: 36,
+  },
+  signOutContainer: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   footer: {
     marginTop: Spacing.xxl,

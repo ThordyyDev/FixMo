@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
@@ -105,7 +104,7 @@ export const SupabaseConnectionCard: React.FC = () => {
         <View style={styles.infoBox}>
           <Ionicons name="information-circle-outline" size={16} color={Colors.warningDark} />
           <Text style={styles.infoText}>
-            Add your Supabase project URL and Anon Key to `.env.local` to connect.
+            Add your Supabase project URL and Publishable Key to `.env.local` to connect.
           </Text>
         </View>
       )}

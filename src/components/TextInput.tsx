@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     borderRadius: BorderRadius.lg,
     minHeight: Layout.inputHeight,
@@ -152,11 +152,6 @@ const styles = StyleSheet.create({
   inputWrapperFocused: {
     borderColor: Colors.accent,
     backgroundColor: Colors.surface,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 1,
   },
   inputWrapperError: {
     borderColor: Colors.error,
@@ -171,7 +166,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.md,
     color: Colors.textPrimary,
     paddingVertical: Spacing.sm,
-    height: '100%',
   },
   inputWithLeftIcon: {
     paddingLeft: Spacing.xs,

@@ -2,17 +2,76 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabasePublishableKey =
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-export const isSupabaseConfigured = (): boolean => {
-  return (
-    !!supabaseUrl &&
-    !!supabaseAnonKey &&
-    supabaseUrl.startsWith('http') &&
-    !supabaseUrl.includes('your-project-id') &&
-    !supabaseAnonKey.includes('your-anon-key')
-  );
+export interface SupabaseConfigValidation {
+  isValid: boolean;
+  error?: string;
+  missingKeys?: string[];
+}
+
+/**
+ * Validates the presence and format of required Supabase environment variables.
+ */
+export const validateSupabaseConfig = (): SupabaseConfigValidation => {
+  const missing: string[] = [];
+
+  if (!supabaseUrl) {
+    missing.push('EXPO_PUBLIC_SUPABASE_URL');
+  }
+
+  if (!supabasePublishableKey) {
+    missing.push('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+  }
+
+  if (missing.length > 0) {
+    return {
+      isValid: false,
+      missingKeys: missing,
+      error: `Missing required Supabase environment variable(s): ${missing.join(', ')}. Please define them in .env.local.`,
+    };
+  }
+
+  if (
+    !supabaseUrl!.startsWith('http://') &&
+    !supabaseUrl!.startsWith('https://')
+  ) {
+    return {
+      isValid: false,
+      error: 'EXPO_PUBLIC_SUPABASE_URL must be a valid URL starting with https:// or http://.',
+    };
+  }
+
+  if (
+    supabaseUrl!.includes('your-project-id') ||
+    supabasePublishableKey!.includes('your-publishable-key') ||
+    supabasePublishableKey!.includes('your-anon-key')
+  ) {
+    return {
+      isValid: false,
+      error: 'Supabase environment variables contain placeholder values. Please set your real project credentials in .env.local.',
+    };
+  }
+
+  return { isValid: true };
 };
+
+/**
+ * Checks whether Supabase is properly configured with valid URL and publishable key.
+ */
+export const isSupabaseConfigured = (): boolean => {
+  return validateSupabaseConfig().isValid;
+};
+
+// Surface helpful development warning when running locally without credentials
+if (__DEV__) {
+  const check = validateSupabaseConfig();
+  if (!check.isValid) {
+    console.warn(`[FixMo Supabase] Configuration note: ${check.error}`);
+  }
+}
 
 /**
  * Creates the Supabase client with AsyncStorage session persistence.
@@ -21,7 +80,7 @@ export const isSupabaseConfigured = (): boolean => {
  */
 export const supabase: SupabaseClient = createClient(
   supabaseUrl || 'https://placeholder-fixmo.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
+  supabasePublishableKey || 'placeholder-publishable-key',
   {
     auth: {
       storage: AsyncStorage,
@@ -41,13 +100,14 @@ export interface ConnectionTestResult {
 
 /**
  * Tests the connection to the configured Supabase project.
- * Performs a lightweight health check to verify URL reachability and API key validity.
+ * Performs a lightweight health check against the Supabase API to verify reachability and publishable key validity.
  */
 export const testSupabaseConnection = async (): Promise<ConnectionTestResult> => {
-  if (!isSupabaseConfigured()) {
+  const validation = validateSupabaseConfig();
+  if (!validation.isValid) {
     return {
       success: false,
-      message: 'Supabase credentials are not configured. Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your .env.local file.',
+      message: validation.error || 'Supabase configuration is invalid.',
       url: supabaseUrl || 'Not set',
     };
   }
@@ -55,12 +115,12 @@ export const testSupabaseConnection = async (): Promise<ConnectionTestResult> =>
   const startTime = Date.now();
 
   try {
-    // Ping the Supabase REST health endpoint with the public anon key
-    const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+    // Ping the Supabase Auth Health endpoint with the publishable key
+    // This verifies both URL connectivity and API key authorization without requiring secret keys.
+    const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
       method: 'GET',
       headers: {
-        apikey: supabaseAnonKey as string,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabasePublishableKey as string,
       },
     });
 
@@ -78,7 +138,7 @@ export const testSupabaseConnection = async (): Promise<ConnectionTestResult> =>
     if (response.status === 401) {
       return {
         success: false,
-        message: 'Supabase reached, but the API Key (EXPO_PUBLIC_SUPABASE_ANON_KEY) is invalid or unauthorized.',
+        message: 'Supabase reached, but the Publishable Key is invalid or unauthorized.',
         url: supabaseUrl,
         latencyMs,
       };
