@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { Button, TextInput, ErrorMessage, Card } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
+import { validateUsername } from '@/services/profile';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -21,6 +22,7 @@ export default function RegisterScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
 
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,19 +31,28 @@ export default function RegisterScreen() {
   const [confirmationNotice, setConfirmationNotice] = useState<string | null>(null);
 
   // Field validation errors
+  const [usernameError, setUsernameError] = useState<string | undefined>(undefined);
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | undefined>(undefined);
 
   const validate = (): boolean => {
     let isValid = true;
+    setUsernameError(undefined);
     setEmailError(undefined);
     setPasswordError(undefined);
     setConfirmPasswordError(undefined);
     setErrorMessage(null);
 
-    const trimmedEmail = email.trim();
+    // 1. Username validation
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.isValid) {
+      setUsernameError(usernameValidation.error);
+      isValid = false;
+    }
 
+    // 2. Email validation
+    const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       setEmailError('Email address is required.');
       isValid = false;
@@ -50,6 +61,7 @@ export default function RegisterScreen() {
       isValid = false;
     }
 
+    // 3. Password validation
     if (!password) {
       setPasswordError('Password is required.');
       isValid = false;
@@ -58,6 +70,7 @@ export default function RegisterScreen() {
       isValid = false;
     }
 
+    // 4. Confirm password validation
     if (!confirmPassword) {
       setConfirmPasswordError('Please confirm your password.');
       isValid = false;
@@ -77,7 +90,11 @@ export default function RegisterScreen() {
     setConfirmationNotice(null);
 
     try {
-      const { error, requiresEmailConfirmation } = await signUp(email, password);
+      const { error, requiresEmailConfirmation } = await signUp(
+        email,
+        password,
+        username
+      );
 
       if (error) {
         setErrorMessage(error.message);
@@ -121,7 +138,7 @@ export default function RegisterScreen() {
           <Card style={styles.formCard}>
             <Text style={styles.cardTitle}>Create Account</Text>
             <Text style={styles.cardSubtitle}>
-              Register with your email to request services or offer skilled trades
+              Register with your unique username and email to request services or offer skilled trades
             </Text>
 
             {errorMessage && (
@@ -140,6 +157,23 @@ export default function RegisterScreen() {
                 </View>
               </View>
             )}
+
+            <TextInput
+              label="Username"
+              placeholder="e.g. juandelacruz"
+              value={username}
+              onChangeText={(text) => {
+                setUsername(text);
+                if (usernameError) setUsernameError(undefined);
+              }}
+              errorText={usernameError}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+              leftIcon={<Ionicons name="at-outline" size={18} color={Colors.textSecondary} />}
+              helperText="3-20 characters (letters, numbers, and underscores)"
+              required
+            />
 
             <TextInput
               label="Email Address"

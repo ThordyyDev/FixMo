@@ -57,7 +57,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
 export default function WorkerProfileScreen() {
   const router = useRouter();
   const { switchToSeeker } = useRole();
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -69,8 +69,27 @@ export default function WorkerProfileScreen() {
     }
   };
 
-  const displayName = user?.email ? user.email.split('@')[0] : 'Mario Batumbakal';
+  const usernameHandle = profile?.username
+    ? `@${profile.username}`
+    : user?.user_metadata?.username
+    ? `@${user.user_metadata.username}`
+    : '@worker';
+
+  const displayName =
+    profile?.full_name ||
+    profile?.username ||
+    user?.user_metadata?.username ||
+    (user?.email ? user.email.split('@')[0] : 'Mario Batumbakal');
+
   const displayEmail = user?.email || 'mario.worker@example.com';
+  const displayRole = profile?.role
+    ? profile.role === 'worker'
+      ? 'Skilled Worker'
+      : profile.role === 'seeker'
+      ? 'Service Seeker'
+      : profile.role
+    : 'Skilled Worker';
+
   const skills = ['Plumbing', 'Electrical', 'Appliance Repair', 'Pipe Fitting'];
 
   return (
@@ -93,7 +112,8 @@ export default function WorkerProfileScreen() {
               <Text style={styles.userName}>{displayName}</Text>
               <StatusBadge label="Verified Worker" status="success" size="sm" showDot />
             </View>
-            <Text style={styles.userRole}>Master Plumber & Electrician • Purok 4</Text>
+            <Text style={styles.userHandle}>{usernameHandle}</Text>
+            <Text style={styles.userRole}>{displayRole} • Master Plumber • Purok 4</Text>
             <Text style={styles.userPhone}>{displayEmail}</Text>
           </View>
         </View>
@@ -274,6 +294,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
+  },
+  userHandle: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.accent,
+    marginBottom: 2,
   },
   userRole: {
     fontSize: Typography.sizes.xs,

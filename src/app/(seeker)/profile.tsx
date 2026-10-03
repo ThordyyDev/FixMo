@@ -57,7 +57,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
 export default function SeekerProfileScreen() {
   const router = useRouter();
   const { switchToWorker } = useRole();
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -69,8 +69,26 @@ export default function SeekerProfileScreen() {
     }
   };
 
-  const displayName = user?.email ? user.email.split('@')[0] : 'Juan Dela Cruz';
+  const usernameHandle = profile?.username
+    ? `@${profile.username}`
+    : user?.user_metadata?.username
+    ? `@${user.user_metadata.username}`
+    : '@seeker';
+
+  const displayName =
+    profile?.full_name ||
+    profile?.username ||
+    user?.user_metadata?.username ||
+    (user?.email ? user.email.split('@')[0] : 'Juan Dela Cruz');
+
   const displayEmail = user?.email || 'juan.delacruz@example.com';
+  const displayRole = profile?.role
+    ? profile.role === 'seeker'
+      ? 'Service Seeker'
+      : profile.role === 'worker'
+      ? 'Skilled Worker'
+      : profile.role
+    : 'Service Seeker';
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -89,7 +107,8 @@ export default function SeekerProfileScreen() {
 
           <View style={styles.profileInfo}>
             <Text style={styles.userName}>{displayName}</Text>
-            <Text style={styles.userRole}>Service Seeker • Purok 2, Tinago</Text>
+            <Text style={styles.userHandle}>{usernameHandle}</Text>
+            <Text style={styles.userRole}>{displayRole} • Purok 2, Tinago</Text>
             <Text style={styles.userPhone}>{displayEmail}</Text>
           </View>
         </View>
@@ -250,6 +269,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
+  },
+  userHandle: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.accent,
+    marginTop: 1,
   },
   userRole: {
     fontSize: Typography.sizes.xs,
