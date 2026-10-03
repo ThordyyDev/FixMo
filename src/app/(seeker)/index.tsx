@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -10,28 +10,48 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useRole } from '@/contexts/RoleContext';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
-import { StatusBadge } from '@/components';
-
-interface ServiceCategoryItem {
-  id: string;
-  name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  isAiDiagnostic?: boolean;
-}
-
-const CATEGORIES: ServiceCategoryItem[] = [
-  { id: 'ai-diag', name: 'AI Scan', icon: 'camera', isAiDiagnostic: true },
-  { id: 'electrical', name: 'Electrical', icon: 'flash' },
-  { id: 'plumbing', name: 'Plumbing', icon: 'water' },
-  { id: 'carpentry', name: 'Carpentry', icon: 'hammer' },
-  { id: 'appliances', name: 'Appliances', icon: 'tv' },
-  { id: 'masonry', name: 'Masonry', icon: 'construct' },
-];
+import {
+  StatusBadge,
+  ServiceCategoryCard,
+  LoadingIndicator,
+  ErrorMessage,
+  EmptyState,
+} from '@/components';
+import { getServiceCategories, getCategoryIconName } from '@/services';
+import { ServiceCategory } from '@/types';
 
 export default function SeekerHomeScreen() {
   const router = useRouter();
   const { switchToWorker } = useRole();
-  const [selectedCategory, setSelectedCategory] = useState<string>('ai-diag');
+
+  // Supabase service categories state
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  const loadCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    setCategoriesError(null);
+
+    const { data, error } = await getServiceCategories();
+
+    if (error) {
+      setCategoriesError(error.message);
+    } else {
+      setCategories(data);
+    }
+
+    setLoadingCategories(false);
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  const handleCategoryPress = (category: ServiceCategory) => {
+    setSelectedCategoryId(category.id);
+  };
 
   return (
     <View style={styles.screen}>
@@ -100,54 +120,65 @@ export default function SeekerHomeScreen() {
           </Pressable>
         </View>
 
-        {/* Service Categories Grid */}
+        {/* Service Categories Section */}
         <View style={styles.categoriesSection}>
-          <Text style={styles.sectionHeading}>Service Categories</Text>
-          <View style={styles.categoryRow}>
-            {CATEGORIES.map((cat) => {
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  accessibilityRole="button"
-                  onPress={() => setSelectedCategory(cat.id)}
-                  style={styles.categoryItem}
-                >
-                  <View
-                    style={[
-                      styles.circularIconContainer,
-                      cat.isAiDiagnostic && styles.circularIconAi,
-                      isSelected && styles.circularIconSelected,
-                    ]}
-                  >
-                    <Ionicons
-                      name={cat.icon}
-                      size={22}
-                      color={
-                        cat.isAiDiagnostic
-                          ? Colors.accent
-                          : isSelected
-                          ? Colors.accent
-                          : Colors.textPrimary
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      isSelected && styles.categoryLabelSelected,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {cat.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeading}>Service Categories</Text>
+            {categories.length > 0 && (
+              <Text style={styles.categoryCountBadge}>{categories.length} Available</Text>
+            )}
           </View>
+
+          {/* Loading State */}
+          {loadingCategories && (
+            <View style={styles.stateWrapper}>
+              <LoadingIndicator size="small" message="Loading categories..." />
+            </View>
+          )}
+
+          {/* Error State with Retry */}
+          {!loadingCategories && categoriesError && (
+            <View style={styles.stateWrapper}>
+              <ErrorMessage
+                message={categoriesError}
+                onRetry={loadCategories}
+                retryText="Try Again"
+              />
+            </View>
+          )}
+
+          {/* Empty State */}
+          {!loadingCategories && !categoriesError && categories.length === 0 && (
+            <View style={styles.stateWrapper}>
+              <EmptyState
+                iconName="grid-outline"
+                title="No Service Categories Found"
+                description="Active services will appear here once configured in Barangay Tinago."
+                actionText="Refresh"
+                onActionPress={loadCategories}
+              />
+            </View>
+          )}
+
+          {/* Loaded Categories Grid */}
+          {!loadingCategories && !categoriesError && categories.length > 0 && (
+            <View style={styles.categoriesGrid}>
+              {categories.map((cat) => (
+                <View key={cat.id} style={styles.gridItemContainer}>
+                  <ServiceCategoryCard
+                    title={cat.name}
+                    subtitle={cat.description || undefined}
+                    iconName={getCategoryIconName(cat.icon, cat.name)}
+                    isSelected={selectedCategoryId === cat.id}
+                    onPress={() => handleCategoryPress(cat)}
+                  />
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Recent Locations & Quick Requests */}
+        {/* Frequent Barangay Locations */}
         <View style={styles.placesSection}>
           <Text style={styles.sectionHeading}>Frequent Barangay Locations</Text>
 
@@ -352,50 +383,43 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     paddingHorizontal: Spacing.lg,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
   sectionHeading: {
     fontSize: Typography.sizes.md,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.md,
   },
-  categoryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  categoryCountBadge: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textSecondary,
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
   },
-  categoryItem: {
-    alignItems: 'center',
-    width: 48,
-  },
-  circularIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  stateWrapper: {
     backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginBottom: Spacing.xs,
-    ...Shadows.subtle,
+    minHeight: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  circularIconAi: {
-    backgroundColor: Colors.accentLight,
-    borderColor: Colors.accentBorder,
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
   },
-  circularIconSelected: {
-    borderColor: Colors.accent,
-    backgroundColor: Colors.accentLight,
-  },
-  categoryLabel: {
-    fontSize: Typography.sizes.xxs,
-    color: Colors.textPrimary,
-    fontWeight: Typography.weights.medium,
-    textAlign: 'center',
-  },
-  categoryLabelSelected: {
-    color: Colors.accent,
-    fontWeight: Typography.weights.bold,
+  gridItemContainer: {
+    width: '47.5%',
   },
   placesSection: {
     marginTop: Spacing.xl,

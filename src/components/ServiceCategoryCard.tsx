@@ -57,18 +57,20 @@ export const ServiceCategoryCard: React.FC<ServiceCategoryCardProps> = ({
         ) : null}
       </View>
 
-      <Text
-        style={[styles.title, isSelected && styles.titleSelected]}
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
-
-      {subtitle ? (
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {subtitle}
+      <View style={styles.textContainer}>
+        <Text
+          style={[styles.title, isSelected && styles.titleSelected]}
+          numberOfLines={1}
+        >
+          {title}
         </Text>
-      ) : null}
+
+        {subtitle ? (
+          <Text style={styles.subtitle} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 };
@@ -80,7 +82,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    minHeight: 110,
+    minHeight: 120,
     justifyContent: 'space-between',
     ...Shadows.subtle,
   },
@@ -120,9 +122,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.semibold,
     color: Colors.textSecondary,
   },
+  textContainer: {
+    marginTop: Spacing.xs,
+  },
   title: {
     fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.semibold,
+    fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
   },
   titleSelected: {
@@ -131,6 +136,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
+    lineHeight: 16,
   },
 });

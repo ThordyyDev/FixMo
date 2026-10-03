@@ -45,12 +45,18 @@ export interface UpdateProfileInput {
   avatar_url?: string | null;
 }
 
-export type ServiceCategory = 
-  | 'electrical'
-  | 'plumbing'
-  | 'carpentry'
-  | 'appliance_repair'
-  | 'general_maintenance';
+/**
+ * FixMo Service Category model mapped to public.service_categories in Supabase.
+ */
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export type DiagnosticStatus = 
   | 'pending'
