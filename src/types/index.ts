@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FixMo Shared TypeScript Types & Interfaces
  * 
  * Defines core domain models for the FixMo Capstone Project.
@@ -64,3 +64,36 @@ export type DiagnosticStatus =
   | 'diagnosed'
   | 'matched'
   | 'completed';
+
+export type WorkerAvailabilityStatus = 'available' | 'unavailable';
+export type WorkerVerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
+
+/**
+ * FixMo Worker Profile model mapped to public.worker_profiles in Supabase.
+ */
+export interface WorkerProfile {
+  id: string;
+  bio: string | null;
+  experience_years: number | null;
+  service_area: string | null;
+  availability_status: WorkerAvailabilityStatus;
+  verification_status: WorkerVerificationStatus;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateWorkerProfileInput {
+  bio?: string | null;
+  experience_years?: number | null;
+  service_area?: string | null;
+  availability_status?: WorkerAvailabilityStatus;
+}
+
+export interface UpdateWorkerProfileInput {
+  bio?: string | null;
+  experience_years?: number | null;
+  service_area?: string | null;
+  availability_status?: WorkerAvailabilityStatus;
+}
+
