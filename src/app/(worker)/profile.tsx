@@ -29,11 +29,19 @@ import {
   createWorkerProfile,
   updateWorkerProfile,
   validateExperienceYears,
+  getWorkerServices,
+  addWorkerService,
+  updateWorkerService,
+  deleteWorkerService,
+  getServiceCategories,
+  getCategoryIconName,
 } from '@/services';
 import {
   WorkerProfile,
   WorkerAvailabilityStatus,
   WorkerVerificationStatus,
+  WorkerService,
+  ServiceCategory,
 } from '@/types';
 
 interface MenuItemProps {
@@ -101,19 +109,47 @@ export default function WorkerProfileScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Editable form state
+  // Editable profile form state
   const [isSettingUp, setIsSettingUp] = useState<boolean>(false);
   const [bio, setBio] = useState<string>('');
   const [experienceYears, setExperienceYears] = useState<string>('');
   const [serviceArea, setServiceArea] = useState<string>('');
   const [availabilityStatus, setAvailabilityStatus] = useState<WorkerAvailabilityStatus>('available');
 
-  // Submission feedback state
+  // Profile submission feedback state
   const [saving, setSaving] = useState<boolean>(false);
   const [experienceError, setExperienceError] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // ==================== WORKER SERVICES STATE ====================
+  const [workerServices, setWorkerServices] = useState<WorkerService[]>([]);
+  const [loadingServices, setLoadingServices] = useState<boolean>(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
+  // Available categories from Supabase public.service_categories
+  const [availableCategories, setAvailableCategories] = useState<ServiceCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
+
+  // Add Service Form State
+  const [isAddingService, setIsAddingService] = useState<boolean>(false);
+  const [newServiceCategoryId, setNewServiceCategoryId] = useState<string>('');
+  const [newServiceDescription, setNewServiceDescription] = useState<string>('');
+  const [addingService, setAddingService] = useState<boolean>(false);
+  const [addServiceError, setAddServiceError] = useState<string | null>(null);
+
+  // Edit Service State
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editingDescription, setEditingDescription] = useState<string>('');
+  const [savingEdit, setSavingEdit] = useState<boolean>(false);
+  const [editServiceError, setEditServiceError] = useState<string | null>(null);
+
+  // Delete Confirmation State
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Load Worker Profile
   const loadProfile = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);
@@ -149,11 +185,46 @@ export default function WorkerProfileScreen() {
     setLoading(false);
   }, [user?.id]);
 
+  // Load Worker Services
+  const loadServices = useCallback(async () => {
+    if (!user?.id) {
+      setLoadingServices(false);
+      return;
+    }
+
+    setLoadingServices(true);
+    setServicesError(null);
+
+    const { data, error } = await getWorkerServices(user.id);
+
+    if (error) {
+      setServicesError(error.message);
+    } else {
+      setWorkerServices(data);
+    }
+
+    setLoadingServices(false);
+  }, [user?.id]);
+
+  // Load Available Service Categories from Supabase
+  const loadAvailableCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    const { data } = await getServiceCategories();
+    if (data && data.length > 0) {
+      setAvailableCategories(data);
+      setNewServiceCategoryId(data[0].id);
+    }
+    setLoadingCategories(false);
+  }, []);
+
   useEffect(() => {
     loadProfile();
-  }, [loadProfile]);
+    loadServices();
+    loadAvailableCategories();
+  }, [loadProfile, loadServices, loadAvailableCategories]);
 
-  const handleSave = async () => {
+  // Save / Update Worker Profile
+  const handleSaveProfile = async () => {
     if (!user?.id) {
       setFormError('Authentication required. Please sign in again.');
       return;
@@ -172,7 +243,6 @@ export default function WorkerProfileScreen() {
 
     try {
       if (workerProfile) {
-        // Update existing profile
         const { data, error } = await updateWorkerProfile(user.id, {
           bio: bio.trim() || null,
           experience_years: expValidation.value,
@@ -187,7 +257,6 @@ export default function WorkerProfileScreen() {
           setSuccessMessage('Worker profile updated successfully.');
         }
       } else {
-        // Create initial worker profile
         const { data, error } = await createWorkerProfile(user.id, {
           bio: bio.trim() || null,
           experience_years: expValidation.value,
@@ -205,6 +274,106 @@ export default function WorkerProfileScreen() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Add Worker Service
+  const handleAddService = async () => {
+    if (!user?.id) {
+      setAddServiceError('Authentication required. Please sign in again.');
+      return;
+    }
+
+    if (!newServiceCategoryId) {
+      setAddServiceError('Please select a service category.');
+      return;
+    }
+
+    // Local check for duplicate category
+    const alreadyExists = workerServices.some((s) => s.category_id === newServiceCategoryId);
+    if (alreadyExists) {
+      setAddServiceError('You already added this service.');
+      return;
+    }
+
+    setAddingService(true);
+    setAddServiceError(null);
+
+    try {
+      const { data, error } = await addWorkerService(
+        user.id,
+        newServiceCategoryId,
+        newServiceDescription
+      );
+
+      if (error) {
+        setAddServiceError(error.message);
+      } else if (data) {
+        setWorkerServices((prev) => [...prev, data]);
+        setIsAddingService(false);
+        setNewServiceDescription('');
+        // Select next available category if any
+        const nextAvail = availableCategories.find(
+          (c) => c.id !== data.category_id && !workerServices.some((s) => s.category_id === c.id)
+        );
+        if (nextAvail) {
+          setNewServiceCategoryId(nextAvail.id);
+        }
+      }
+    } finally {
+      setAddingService(false);
+    }
+  };
+
+  // Start Editing a Service
+  const handleStartEdit = (service: WorkerService) => {
+    setEditingServiceId(service.id);
+    setEditingDescription(service.service_description || '');
+    setEditServiceError(null);
+  };
+
+  // Save Service Edit
+  const handleSaveEdit = async (serviceId: string) => {
+    if (!user?.id) return;
+    setSavingEdit(true);
+    setEditServiceError(null);
+
+    try {
+      const { data, error } = await updateWorkerService(
+        user.id,
+        serviceId,
+        editingDescription
+      );
+
+      if (error) {
+        setEditServiceError(error.message);
+      } else if (data) {
+        setWorkerServices((prev) =>
+          prev.map((s) => (s.id === serviceId ? data : s))
+        );
+        setEditingServiceId(null);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Delete Worker Service
+  const handleDeleteService = async (serviceId: string) => {
+    if (!user?.id) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const { success, error } = await deleteWorkerService(user.id, serviceId);
+      if (error) {
+        setDeleteError(error.message);
+      } else if (success) {
+        setWorkerServices((prev) => prev.filter((s) => s.id !== serviceId));
+        setDeletingServiceId(null);
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -230,7 +399,7 @@ export default function WorkerProfileScreen() {
     (user?.email ? user.email.split('@')[0] : 'FixMo Worker');
 
   const displayEmail = user?.email || '';
-  const displayRole = profile?.role === 'worker' ? 'Skilled Worker' : 'Skilled Worker';
+  const displayRole = 'Skilled Worker';
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -266,6 +435,25 @@ export default function WorkerProfileScreen() {
             {displayEmail ? <Text style={styles.userEmail}>{displayEmail}</Text> : null}
           </View>
         </View>
+
+        {/* Dynamic Skills Summary */}
+        {workerServices.length > 0 && (
+          <View style={styles.skillsSummarySection}>
+            <Text style={styles.skillsSummaryHeading}>Offered Skills & Trades</Text>
+            <View style={styles.skillsSummaryRow}>
+              {workerServices.map((ws) => (
+                <View key={ws.id} style={styles.skillSummaryPill}>
+                  <Ionicons
+                    name={getCategoryIconName(ws.category?.icon, ws.category?.name)}
+                    size={13}
+                    color={Colors.accent}
+                  />
+                  <Text style={styles.skillSummaryPillText}>{ws.category?.name || 'Service'}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Section: Worker Profile Foundation */}
         <View style={styles.sectionContainer}>
@@ -410,7 +598,7 @@ export default function WorkerProfileScreen() {
                     <Button
                       title={saving ? 'Creating...' : 'Create Worker Profile'}
                       loading={saving}
-                      onPress={handleSave}
+                      onPress={handleSaveProfile}
                       style={styles.flexButton}
                     />
                     <SecondaryButton
@@ -432,7 +620,6 @@ export default function WorkerProfileScreen() {
           {/* Active Worker Profile Edit Card */}
           {!loading && !loadError && workerProfile && (
             <Card variant="outlined" style={styles.formCard}>
-              {/* Read-only Verification Status Banner */}
               <View style={styles.verificationBanner}>
                 <View style={styles.verificationTopRow}>
                   <View style={styles.verificationTitleGroup}>
@@ -460,7 +647,6 @@ export default function WorkerProfileScreen() {
                 </View>
               )}
 
-              {/* Bio Input */}
               <TextInput
                 label="Bio"
                 placeholder="Describe your specialties, background, and trades..."
@@ -474,7 +660,6 @@ export default function WorkerProfileScreen() {
                 containerStyle={styles.fieldSpacing}
               />
 
-              {/* Years of Experience Input */}
               <TextInput
                 label="Years of Experience"
                 placeholder="e.g. 5"
@@ -490,7 +675,6 @@ export default function WorkerProfileScreen() {
                 containerStyle={styles.fieldSpacing}
               />
 
-              {/* Service Area Input */}
               <TextInput
                 label="Service Area"
                 placeholder="e.g. Barangay Tinago, Purok 1-4"
@@ -566,11 +750,313 @@ export default function WorkerProfileScreen() {
               <Button
                 title={saving ? 'Saving...' : 'Update Worker Profile'}
                 loading={saving}
-                onPress={handleSave}
+                onPress={handleSaveProfile}
                 fullWidth
                 style={styles.saveButton}
               />
             </Card>
+          )}
+        </View>
+
+        {/* ==================== MY SERVICES SECTION ==================== */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeaderRow}>
+            <View>
+              <Text style={styles.sectionHeading}>My Services</Text>
+              <Text style={styles.sectionSubheading}>Categories and trades you offer in Tinago</Text>
+            </View>
+            {!isAddingService && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add service category"
+                onPress={() => {
+                  setIsAddingService(true);
+                  setAddServiceError(null);
+                }}
+                style={({ pressed }) => [
+                  styles.addServicePill,
+                  pressed && styles.addServicePillPressed,
+                ]}
+              >
+                <Ionicons name="add" size={16} color={Colors.accent} />
+                <Text style={styles.addServicePillText}>Add Service</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Loading Services State */}
+          {loadingServices && (
+            <Card variant="outlined" style={styles.stateCard}>
+              <LoadingIndicator size="small" message="Loading services..." />
+            </Card>
+          )}
+
+          {/* Services Load Error */}
+          {!loadingServices && servicesError && (
+            <Card variant="outlined" style={styles.stateCard}>
+              <ErrorMessage
+                message={servicesError}
+                onRetry={loadServices}
+                retryText="Try Again"
+              />
+            </Card>
+          )}
+
+          {/* Add Service Form Card */}
+          {isAddingService && (
+            <Card variant="outlined" style={styles.formCard}>
+              <Text style={styles.cardHeaderTitle}>Add Service Category</Text>
+              <Text style={styles.cardHeaderSubtitle}>
+                Select an active trade category and optionally provide a custom description.
+              </Text>
+
+              {addServiceError && <ErrorMessage message={addServiceError} style={styles.messageBanner} />}
+
+              {/* Dynamic Category Selector */}
+              <View style={styles.fieldSpacing}>
+                <Text style={styles.controlLabel}>Select Category</Text>
+                {loadingCategories ? (
+                  <LoadingIndicator size="small" message="Loading categories..." />
+                ) : (
+                  <View style={styles.categoryChipsGrid}>
+                    {availableCategories.map((cat) => {
+                      const isAlreadyAdded = workerServices.some((s) => s.category_id === cat.id);
+                      const isSelected = newServiceCategoryId === cat.id;
+
+                      return (
+                        <Pressable
+                          key={cat.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Select ${cat.name}`}
+                          onPress={() => {
+                            setNewServiceCategoryId(cat.id);
+                            setAddServiceError(null);
+                          }}
+                          style={[
+                            styles.categorySelectChip,
+                            isSelected && styles.categorySelectChipSelected,
+                            isAlreadyAdded && styles.categorySelectChipAdded,
+                          ]}
+                        >
+                          <Ionicons
+                            name={getCategoryIconName(cat.icon, cat.name)}
+                            size={16}
+                            color={isSelected ? Colors.accent : isAlreadyAdded ? Colors.textTertiary : Colors.textPrimary}
+                          />
+                          <Text
+                            style={[
+                              styles.categorySelectChipText,
+                              isSelected && styles.categorySelectChipTextSelected,
+                              isAlreadyAdded && styles.categorySelectChipTextAdded,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat.name}
+                          </Text>
+                          {isAlreadyAdded && (
+                            <View style={styles.addedSmallBadge}>
+                              <Text style={styles.addedSmallBadgeText}>Added</Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              {/* Service Description Input */}
+              <TextInput
+                label="Service Description (Optional)"
+                placeholder="e.g. Household plumbing repairs, leak fixes, fixture installs..."
+                value={newServiceDescription}
+                onChangeText={setNewServiceDescription}
+                multiline
+                numberOfLines={2}
+                helperText="Specific details regarding your experience with this service."
+                containerStyle={styles.fieldSpacing}
+              />
+
+              <View style={styles.formButtonRow}>
+                <Button
+                  title={addingService ? 'Adding...' : 'Add Service'}
+                  loading={addingService}
+                  onPress={handleAddService}
+                  style={styles.flexButton}
+                />
+                <SecondaryButton
+                  title="Cancel"
+                  disabled={addingService}
+                  onPress={() => {
+                    setIsAddingService(false);
+                    setAddServiceError(null);
+                  }}
+                  style={styles.cancelButton}
+                />
+              </View>
+            </Card>
+          )}
+
+          {/* Empty Services State */}
+          {!loadingServices && !servicesError && workerServices.length === 0 && !isAddingService && (
+            <Card variant="outlined" style={styles.emptyCard}>
+              <EmptyState
+                iconName="construct-outline"
+                title="No services added yet."
+                description="Add the trade categories and skills you offer to connect with repair requests in Barangay Tinago."
+                actionText="Add Your First Service"
+                onActionPress={() => setIsAddingService(true)}
+              />
+            </Card>
+          )}
+
+          {/* Services List */}
+          {!loadingServices && !servicesError && workerServices.length > 0 && (
+            <View style={styles.servicesList}>
+              {deleteError && <ErrorMessage message={deleteError} style={styles.messageBanner} />}
+
+              {workerServices.map((service) => {
+                const isEditing = editingServiceId === service.id;
+                const isPendingDelete = deletingServiceId === service.id;
+                const category = service.category;
+
+                return (
+                  <Card key={service.id} variant="outlined" style={styles.serviceItemCard}>
+                    {/* Top Row: Category Info & Actions */}
+                    <View style={styles.serviceCardTopRow}>
+                      <View style={styles.serviceCategoryHeader}>
+                        <View style={styles.serviceIconCircle}>
+                          <Ionicons
+                            name={getCategoryIconName(category?.icon, category?.name)}
+                            size={20}
+                            color={Colors.accent}
+                          />
+                        </View>
+                        <View style={styles.serviceNameGroup}>
+                          <Text style={styles.serviceCategoryName}>
+                            {category?.name || 'Service Category'}
+                          </Text>
+                          {category?.description ? (
+                            <Text style={styles.categoryDescText} numberOfLines={2}>
+                              {category.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      {!isEditing && !isPendingDelete && (
+                        <View style={styles.serviceActionsRow}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Edit ${category?.name} service description`}
+                            onPress={() => handleStartEdit(service)}
+                            style={({ pressed }) => [
+                              styles.actionIconButton,
+                              pressed && styles.actionIconButtonPressed,
+                            ]}
+                          >
+                            <Ionicons name="pencil" size={17} color={Colors.textSecondary} />
+                          </Pressable>
+
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Delete ${category?.name} service`}
+                            onPress={() => setDeletingServiceId(service.id)}
+                            style={({ pressed }) => [
+                              styles.actionIconButton,
+                              pressed && styles.actionIconButtonPressed,
+                            ]}
+                          >
+                            <Ionicons name="trash-outline" size={17} color={Colors.error} />
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Service Description Display (Read-Only Mode) */}
+                    {!isEditing && !isPendingDelete && service.service_description ? (
+                      <View style={styles.serviceDescriptionBox}>
+                        <Text style={styles.serviceDescriptionLabel}>Your Service Details:</Text>
+                        <Text style={styles.serviceDescriptionText}>
+                          {service.service_description}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* Inline Edit Form */}
+                    {isEditing && (
+                      <View style={styles.inlineEditContainer}>
+                        <Text style={styles.inlineEditNotice}>
+                          Editing description for {category?.name || 'this service'}.
+                        </Text>
+
+                        {editServiceError && (
+                          <ErrorMessage message={editServiceError} style={styles.messageBanner} />
+                        )}
+
+                        <TextInput
+                          placeholder="Update service description..."
+                          value={editingDescription}
+                          onChangeText={setEditingDescription}
+                          multiline
+                          numberOfLines={2}
+                          containerStyle={styles.fieldSpacing}
+                        />
+
+                        <View style={styles.formButtonRow}>
+                          <Button
+                            title={savingEdit ? 'Saving...' : 'Save Description'}
+                            loading={savingEdit}
+                            onPress={() => handleSaveEdit(service.id)}
+                            size="sm"
+                            style={styles.flexButton}
+                          />
+                          <SecondaryButton
+                            title="Cancel"
+                            disabled={savingEdit}
+                            onPress={() => setEditingServiceId(null)}
+                            size="sm"
+                            style={styles.cancelButton}
+                          />
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Inline Delete Confirmation */}
+                    {isPendingDelete && (
+                      <View style={styles.deleteConfirmBanner}>
+                        <View style={styles.deleteConfirmTextRow}>
+                          <Ionicons name="alert-circle" size={18} color={Colors.error} />
+                          <Text style={styles.deleteConfirmTitle}>
+                            Remove this service?
+                          </Text>
+                        </View>
+                        <Text style={styles.deleteConfirmSubtext}>
+                          This will remove {category?.name || 'this service'} from your offerings.
+                        </Text>
+                        <View style={styles.deleteConfirmButtons}>
+                          <SecondaryButton
+                            title="Cancel"
+                            disabled={isDeleting}
+                            onPress={() => setDeletingServiceId(null)}
+                            size="sm"
+                            style={styles.deleteCancelBtn}
+                          />
+                          <Button
+                            title={isDeleting ? 'Removing...' : 'Remove'}
+                            loading={isDeleting}
+                            onPress={() => handleDeleteService(service.id)}
+                            variant="danger"
+                            size="sm"
+                            style={styles.deleteConfirmBtn}
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </Card>
+                );
+              })}
+            </View>
           )}
         </View>
 
@@ -703,15 +1189,78 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginTop: 2,
   },
+  skillsSummarySection: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.divider,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  skillsSummaryHeading: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
+  skillsSummaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  skillSummaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  skillSummaryPillText: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textPrimary,
+  },
   sectionContainer: {
     marginTop: Spacing.lg,
     paddingHorizontal: Spacing.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
   sectionHeading: {
     fontSize: Typography.sizes.md,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
+  },
+  sectionSubheading: {
+    fontSize: Typography.sizes.xxs,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  addServicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.accentLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  addServicePillPressed: {
+    opacity: 0.8,
+  },
+  addServicePillText: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.accent,
   },
   stateCard: {
     padding: Spacing.xl,
@@ -724,6 +1273,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   cardHeaderTitle: {
     fontSize: Typography.sizes.md,
@@ -745,6 +1295,55 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.medium,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
+  },
+  categoryChipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: 4,
+  },
+  categorySelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  categorySelectChipSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentLight,
+  },
+  categorySelectChipAdded: {
+    opacity: 0.65,
+  },
+  categorySelectChipText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textPrimary,
+  },
+  categorySelectChipTextSelected: {
+    color: Colors.accent,
+    fontWeight: Typography.weights.bold,
+  },
+  categorySelectChipTextAdded: {
+    color: Colors.textTertiary,
+  },
+  addedSmallBadge: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  addedSmallBadgeText: {
+    fontSize: 9,
+    color: Colors.textTertiary,
+    fontWeight: Typography.weights.bold,
   },
   availabilityRow: {
     flexDirection: 'row',
@@ -855,6 +1454,128 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: Spacing.xs,
+  },
+  servicesList: {
+    gap: Spacing.sm,
+  },
+  serviceItemCard: {
+    padding: Spacing.md,
+  },
+  serviceCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  serviceCategoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
+  serviceIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  serviceNameGroup: {
+    flex: 1,
+  },
+  serviceCategoryName: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+    color: Colors.textPrimary,
+  },
+  categoryDescText: {
+    fontSize: Typography.sizes.xxs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  serviceActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  actionIconButtonPressed: {
+    opacity: 0.7,
+  },
+  serviceDescriptionBox: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  serviceDescriptionLabel: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  serviceDescriptionText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textPrimary,
+    lineHeight: 18,
+  },
+  inlineEditContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  inlineEditNotice: {
+    fontSize: Typography.sizes.xxs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  deleteConfirmBanner: {
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.errorLight,
+    borderWidth: 1,
+    borderColor: Colors.errorBorder,
+  },
+  deleteConfirmTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  deleteConfirmTitle: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.errorDark,
+  },
+  deleteConfirmSubtext: {
+    fontSize: Typography.sizes.xxs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  deleteConfirmButtons: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  deleteCancelBtn: {
+    flex: 1,
+  },
+  deleteConfirmBtn: {
+    flex: 1,
   },
   switchRoleCard: {
     margin: Spacing.lg,

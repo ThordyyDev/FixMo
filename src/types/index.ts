@@ -97,3 +97,25 @@ export interface UpdateWorkerProfileInput {
   availability_status?: WorkerAvailabilityStatus;
 }
 
+/**
+ * FixMo Worker Service model mapped to public.worker_services in Supabase.
+ */
+export interface WorkerService {
+  id: string;
+  worker_id: string;
+  category_id: string;
+  service_description: string | null;
+  created_at: string;
+  updated_at: string;
+  category?: ServiceCategory;
+}
+
+export interface CreateWorkerServiceInput {
+  category_id: string;
+  service_description?: string | null;
+}
+
+export interface UpdateWorkerServiceInput {
+  service_description?: string | null;
+}
+
