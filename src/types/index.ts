@@ -143,3 +143,44 @@ export interface WorkerDiscoveryFilter {
   searchQuery?: string | null;
 }
 
+/**
+ * Allowed service request statuses in public.service_requests.
+ */
+export type ServiceRequestStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'cancelled'
+  | 'on_the_way'
+  | 'arrived'
+  | 'in_service'
+  | 'completed';
+
+/**
+ * FixMo Service Request model mapped to public.service_requests table in Supabase.
+ */
+export interface ServiceRequest {
+  id: string;
+  seeker_id: string;
+  worker_id: string;
+  category_id: string;
+  description: string;
+  image_path: string | null;
+  service_address: string;
+  preferred_schedule: string | null;
+  status: ServiceRequestStatus;
+  created_at: string;
+  updated_at: string;
+  category?: ServiceCategory;
+  seeker?: Profile;
+  worker?: WorkerProfile;
+}
+
+/**
+ * Filter options for querying service requests.
+ */
+export interface ServiceRequestFilter {
+  status?: ServiceRequestStatus;
+  categoryId?: string;
+}
+

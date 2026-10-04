@@ -9,3 +9,4 @@ export * from './serviceCategories';
 export * from './workerProfile';
 export * from './workerServices';
 export * from './workerDiscovery';
+export * from './serviceRequests';
