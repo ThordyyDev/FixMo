@@ -177,6 +177,20 @@ export interface ServiceRequest {
 }
 
 /**
+ * Input parameters for creating a new service request.
+ * Note: seeker_id is always derived from the authenticated session,
+ * and status is always initialized to 'pending'.
+ */
+export interface CreateServiceRequestInput {
+  workerId: string;
+  categoryId: string;
+  description: string;
+  serviceAddress: string;
+  imagePath?: string | null;
+  preferredSchedule?: string | null;
+}
+
+/**
  * Filter options for querying service requests.
  */
 export interface ServiceRequestFilter {
