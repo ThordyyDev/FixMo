@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,100 +9,166 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
-import { Avatar, StatusBadge, Button, TextInput } from '@/components';
-
-interface WorkerItem {
-  id: string;
-  name: string;
-  trade: string;
-  purok: string;
-  rating: number;
-  completedJobs: number;
-  isAvailable: boolean;
-  isVerified: boolean;
-}
-
-const SAMPLE_WORKERS: WorkerItem[] = [
-  {
-    id: '1',
-    name: 'Reynaldo Cruz',
-    trade: 'Master Electrician',
-    purok: 'Purok 2',
-    rating: 4.9,
-    completedJobs: 42,
-    isAvailable: true,
-    isVerified: true,
-  },
-  {
-    id: '2',
-    name: 'Danilo Orais',
-    trade: 'Pipe & Water Plumber',
-    purok: 'Purok 1',
-    rating: 4.8,
-    completedJobs: 36,
-    isAvailable: true,
-    isVerified: true,
-  },
-  {
-    id: '3',
-    name: 'Arnold Llises',
-    trade: 'Furniture & House Carpenter',
-    purok: 'Purok 3',
-    rating: 4.7,
-    completedJobs: 29,
-    isAvailable: false,
-    isVerified: true,
-  },
-  {
-    id: '4',
-    name: 'Joel Baldon',
-    trade: 'Appliance & AC Technician',
-    purok: 'Purok 4',
-    rating: 4.9,
-    completedJobs: 51,
-    isAvailable: true,
-    isVerified: true,
-  },
-];
+import {
+  Avatar,
+  StatusBadge,
+  Card,
+  TextInput,
+  LoadingIndicator,
+  EmptyState,
+  ErrorMessage,
+} from '@/components';
+import {
+  getVerifiedWorkers,
+  getServiceCategories,
+  getCategoryIconName,
+  filterVerifiedWorkers,
+} from '@/services';
+import {
+  WorkerDiscoveryProfile,
+  ServiceCategory,
+} from '@/types';
 
 export default function SeekerSearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('All');
 
-  const filters = ['All', 'Electrical', 'Plumbing', 'Carpentry', 'Appliances'];
+  // Supabase Data State
+  const [workers, setWorkers] = useState<WorkerDiscoveryProfile[]>([]);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load verified workers & categories
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [workersRes, categoriesRes] = await Promise.all([
+        getVerifiedWorkers(),
+        getServiceCategories(),
+      ]);
+
+      if (workersRes.error) {
+        setError(workersRes.error.message);
+      } else {
+        setWorkers(workersRes.data);
+      }
+
+      if (categoriesRes.data) {
+        setCategories(categoriesRes.data);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load worker directory.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Fast, responsive client-side filtering without refetch flicker
+  const filteredWorkers = useMemo(() => {
+    return filterVerifiedWorkers(workers, {
+      searchQuery,
+      categoryId: selectedCategoryId,
+    });
+  }, [workers, searchQuery, selectedCategoryId]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
+      {/* Top Header & Search Area */}
       <View style={styles.header}>
-        <Text style={styles.title}>Find Skilled Workers</Text>
+        <Text style={styles.title}>Find a Worker</Text>
         <Text style={styles.subtitle}>Verified community workers in Barangay Tinago</Text>
 
         {/* Search input */}
         <TextInput
-          placeholder="Search by skill or worker name..."
+          placeholder="Search by worker name, skill, bio, or area..."
           value={searchQuery}
           onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
           leftIcon={<Ionicons name="search" size={20} color={Colors.textSecondary} />}
+          rightIcon={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search text"
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ opacity: searchQuery.length > 0 ? 1 : 0 }}
+              pointerEvents={searchQuery.length > 0 ? 'auto' : 'none'}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+            </Pressable>
+          }
           containerStyle={styles.searchContainer}
         />
 
-        {/* Filter chips */}
+        {/* Dynamic Category Filter Chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.filtersScroll}
         >
-          {filters.map((filter) => {
-            const isActive = selectedFilter === filter;
+          {/* "All" Option */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Filter by all categories"
+            onPress={() => setSelectedCategoryId('All')}
+            style={[
+              styles.filterChip,
+              selectedCategoryId === 'All' && styles.filterChipActive,
+            ]}
+          >
+            <Ionicons
+              name="grid-outline"
+              size={14}
+              color={selectedCategoryId === 'All' ? Colors.textInverse : Colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.filterChipText,
+                selectedCategoryId === 'All' && styles.filterChipTextActive,
+              ]}
+            >
+              All Categories
+            </Text>
+          </Pressable>
+
+          {/* Dynamic Categories from Supabase */}
+          {categories.map((category) => {
+            const isActive = selectedCategoryId === category.id;
+            const iconName = getCategoryIconName(category.icon, category.name);
+
             return (
               <Pressable
-                key={filter}
+                key={category.id}
                 accessibilityRole="button"
-                onPress={() => setSelectedFilter(filter)}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                accessibilityLabel={`Filter by ${category.name}`}
+                onPress={() => setSelectedCategoryId(category.id)}
+                style={[
+                  styles.filterChip,
+                  isActive && styles.filterChipActive,
+                ]}
               >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {filter}
+                <Ionicons
+                  name={iconName}
+                  size={14}
+                  color={isActive ? Colors.textInverse : Colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    isActive && styles.filterChipTextActive,
+                  ]}
+                >
+                  {category.name}
                 </Text>
               </Pressable>
             );
@@ -110,67 +176,173 @@ export default function SeekerSearchScreen() {
         </ScrollView>
       </View>
 
+      {/* Main Content Area */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.workersList}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.contentContainer}
       >
-        <Text style={styles.resultsCount}>
-          Available in Tinago ({SAMPLE_WORKERS.length} workers)
-        </Text>
-
-        {SAMPLE_WORKERS.map((worker) => (
-          <View key={worker.id} style={styles.workerCard}>
-            <View style={styles.cardTopRow}>
-              <Avatar name={worker.name} size="lg" isVerified={worker.isVerified} />
-
-              <View style={styles.workerInfo}>
-                <View style={styles.nameStatusRow}>
-                  <Text style={styles.workerName}>{worker.name}</Text>
-                  <StatusBadge
-                    label={worker.isAvailable ? 'Available' : 'Busy'}
-                    status={worker.isAvailable ? 'success' : 'neutral'}
-                    size="sm"
-                    showDot
-                  />
-                </View>
-
-                <Text style={styles.workerTrade}>{worker.trade}</Text>
-
-                <View style={styles.metaRow}>
-                  <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={13} color="#F59E0B" />
-                    <Text style={styles.ratingText}>{worker.rating}</Text>
-                  </View>
-                  <Text style={styles.metaDot}>•</Text>
-                  <Text style={styles.metaText}>{worker.completedJobs} jobs</Text>
-                  <Text style={styles.metaDot}>•</Text>
-                  <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
-                  <Text style={styles.metaText}>{worker.purok}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.cardDivider} />
-
-            <View style={styles.cardActionsRow}>
-              <Button
-                title="View Profile"
-                variant="secondary"
-                size="sm"
-                onPress={() => {}}
-                style={styles.actionBtn}
-              />
-              <Button
-                title="Request Worker"
-                variant="primary"
-                size="sm"
-                onPress={() => {}}
-                disabled={!worker.isAvailable}
-                style={styles.actionBtn}
-              />
-            </View>
+        {/* Loading State */}
+        {loading && (
+          <View style={styles.stateWrapper}>
+            <LoadingIndicator size="small" message="Discovering verified workers in Tinago..." />
           </View>
-        ))}
+        )}
+
+        {/* Error State */}
+        {!loading && error && (
+          <View style={styles.stateWrapper}>
+            <ErrorMessage
+              message={error}
+              onRetry={loadData}
+              retryText="Try Again"
+            />
+          </View>
+        )}
+
+        {/* Initial Empty State (No verified workers exist in DB) */}
+        {!loading && !error && workers.length === 0 && (
+          <View style={styles.stateWrapper}>
+            <EmptyState
+              iconName="shield-checkmark-outline"
+              title="No Verified Workers Yet"
+              description="Skilled workers undergo verification by Barangay Tinago officials before appearing here. Check back soon!"
+              actionText="Refresh Directory"
+              onActionPress={loadData}
+            />
+          </View>
+        )}
+
+        {/* Filter/Search Empty State (Workers exist, but filter matched none) */}
+        {!loading && !error && workers.length > 0 && filteredWorkers.length === 0 && (
+          <View style={styles.stateWrapper}>
+            <EmptyState
+              iconName="search-outline"
+              title="No Matching Workers Found"
+              description="No verified workers matched your selected category or search keyword in Barangay Tinago."
+              actionText="Reset Filters"
+              onActionPress={() => {
+                setSearchQuery('');
+                setSelectedCategoryId('All');
+              }}
+            />
+          </View>
+        )}
+
+        {/* Verified Workers List */}
+        {!loading && !error && filteredWorkers.length > 0 && (
+          <>
+            <View style={styles.resultsCountRow}>
+              <Text style={styles.resultsCount}>
+                Verified Workers in Tinago ({filteredWorkers.length})
+              </Text>
+              {selectedCategoryId !== 'All' && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear category filter"
+                  onPress={() => setSelectedCategoryId('All')}
+                >
+                  <Text style={styles.clearFilterText}>Show All</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {filteredWorkers.map((worker) => {
+              const displayName = worker.full_name || worker.username;
+              const isAvailable = worker.availability_status === 'available';
+
+              return (
+                <Card key={worker.worker_id} variant="outlined" style={styles.workerCard}>
+                  {/* Top Row: Avatar & Profile Info */}
+                  <View style={styles.cardTopRow}>
+                    <Avatar
+                      name={displayName}
+                      size="lg"
+                      isVerified={worker.verification_status === 'verified'}
+                    />
+
+                    <View style={styles.workerInfo}>
+                      <View style={styles.nameStatusRow}>
+                        <View style={styles.nameGroup}>
+                          <Text style={styles.workerName} numberOfLines={1}>
+                            {displayName}
+                          </Text>
+                          <Text style={styles.workerHandle}>@{worker.username}</Text>
+                        </View>
+
+                        {/* Availability Status Badge */}
+                        <StatusBadge
+                          label={isAvailable ? 'Available' : 'Unavailable'}
+                          status={isAvailable ? 'success' : 'neutral'}
+                          size="sm"
+                          showDot
+                        />
+                      </View>
+
+                      {/* Verification Status Badge */}
+                      <View style={styles.verificationBadgeRow}>
+                        <StatusBadge
+                          label="Verified Worker"
+                          status="success"
+                          size="sm"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Worker Bio (if provided) */}
+                  {worker.bio ? (
+                    <Text style={styles.bioText} numberOfLines={3}>
+                      {worker.bio}
+                    </Text>
+                  ) : null}
+
+                  {/* Offered Services / Categories */}
+                  {worker.services && worker.services.length > 0 ? (
+                    <View style={styles.servicesRow}>
+                      {worker.services.map((ws) => (
+                        <View key={ws.id} style={styles.servicePill}>
+                          <Ionicons
+                            name={getCategoryIconName(ws.category?.icon, ws.category?.name)}
+                            size={12}
+                            color={Colors.accent}
+                          />
+                          <Text style={styles.servicePillText}>
+                            {ws.category?.name || 'Service'}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {/* Divider */}
+                  <View style={styles.cardDivider} />
+
+                  {/* Metadata Row: Experience & Service Area */}
+                  <View style={styles.metaRow}>
+                    {worker.experience_years !== null && worker.experience_years !== undefined ? (
+                      <View style={styles.metaItem}>
+                        <Ionicons name="ribbon-outline" size={14} color={Colors.textSecondary} />
+                        <Text style={styles.metaText}>
+                          {worker.experience_years} {worker.experience_years === 1 ? 'yr' : 'yrs'} experience
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {worker.service_area ? (
+                      <View style={styles.metaItem}>
+                        <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {worker.service_area}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </Card>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -190,7 +362,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   title: {
-    fontSize: Typography.sizes.display,
+    fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
   },
@@ -208,8 +380,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
   },
   filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.surfaceSecondary,
     borderWidth: 1,
@@ -228,14 +403,30 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontWeight: Typography.weights.bold,
   },
-  workersList: {
+  contentContainer: {
     padding: Spacing.lg,
     gap: Spacing.md,
     paddingBottom: Spacing.huge,
   },
+  stateWrapper: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultsCountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
   resultsCount: {
     fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
+    fontWeight: Typography.weights.semibold,
+  },
+  clearFilterText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.accent,
     fontWeight: Typography.weights.semibold,
   },
   workerCard: {
@@ -257,52 +448,74 @@ const styles = StyleSheet.create({
   nameStatusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+  },
+  nameGroup: {
+    flex: 1,
+    paddingRight: Spacing.xs,
   },
   workerName: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
   },
-  workerTrade: {
-    fontSize: Typography.sizes.xs,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  ratingText: {
-    fontSize: Typography.sizes.xs,
-    fontWeight: Typography.weights.bold,
-    color: Colors.textPrimary,
-  },
-  metaDot: {
-    color: Colors.textTertiary,
-    fontSize: 10,
-  },
-  metaText: {
+  workerHandle: {
     fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.accent,
+    marginTop: 1,
+  },
+  verificationBadgeRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+  },
+  bioText: {
+    fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: Spacing.sm,
+  },
+  servicesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  servicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  servicePillText: {
+    fontSize: Typography.sizes.xxs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textPrimary,
   },
   cardDivider: {
     height: 1,
     backgroundColor: Colors.divider,
     marginVertical: Spacing.sm,
   },
-  cardActionsRow: {
+  metaRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
   },
-  actionBtn: {
-    flex: 1,
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: Typography.sizes.xxs,
+    color: Colors.textSecondary,
+    fontWeight: Typography.weights.medium,
   },
 });

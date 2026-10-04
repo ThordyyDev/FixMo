@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -25,7 +25,7 @@ export interface TextInputProps extends RNTextInputProps {
   required?: boolean;
 }
 
-export const TextInput: React.FC<TextInputProps> = ({
+export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(({
   label,
   helperText,
   errorText,
@@ -40,9 +40,12 @@ export const TextInput: React.FC<TextInputProps> = ({
   onFocus,
   onBlur,
   ...rest
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const innerRef = React.useRef<RNTextInput>(null);
+
+  React.useImperativeHandle(ref, () => innerRef.current as RNTextInput);
 
   const hasError = !!errorText;
   const isSecure = isPassword && !showPassword;
@@ -58,7 +61,12 @@ export const TextInput: React.FC<TextInputProps> = ({
         </View>
       )}
 
-      <View
+      <Pressable
+        onPress={() => {
+          if (editable) {
+            innerRef.current?.focus();
+          }
+        }}
         style={[
           styles.inputWrapper,
           isFocused && styles.inputWrapperFocused,
@@ -66,9 +74,14 @@ export const TextInput: React.FC<TextInputProps> = ({
           !editable && styles.inputWrapperDisabled,
         ]}
       >
-        {leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
+        {leftIcon && (
+          <View style={styles.iconLeft} pointerEvents="none">
+            {leftIcon}
+          </View>
+        )}
 
         <RNTextInput
+          ref={innerRef}
           value={value}
           editable={editable}
           secureTextEntry={isSecure}
@@ -83,8 +96,7 @@ export const TextInput: React.FC<TextInputProps> = ({
           }}
           style={[
             styles.input,
-            leftIcon ? styles.inputWithLeftIcon : null,
-            (rightIcon || isPassword) ? styles.inputWithRightIcon : null,
+            rest.multiline ? styles.inputMultiline : null,
             !editable && styles.inputDisabled,
             inputStyle,
           ]}
@@ -108,7 +120,7 @@ export const TextInput: React.FC<TextInputProps> = ({
         ) : rightIcon ? (
           <View style={styles.iconRight}>{rightIcon}</View>
         ) : null}
-      </View>
+      </Pressable>
 
       {hasError ? (
         <View style={styles.feedbackRow}>
@@ -120,7 +132,9 @@ export const TextInput: React.FC<TextInputProps> = ({
       ) : null}
     </View>
   );
-};
+});
+
+TextInput.displayName = 'TextInput';
 
 const styles = StyleSheet.create({
   container: {
@@ -163,15 +177,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    height: '100%',
+    minHeight: Layout.inputHeight - 4,
     fontSize: Typography.sizes.md,
     color: Colors.textPrimary,
+    paddingVertical: 0,
+  },
+  inputMultiline: {
+    height: undefined,
+    minHeight: 80,
     paddingVertical: Spacing.sm,
-  },
-  inputWithLeftIcon: {
-    paddingLeft: Spacing.xs,
-  },
-  inputWithRightIcon: {
-    paddingRight: Spacing.xs,
+    textAlignVertical: 'top',
   },
   inputDisabled: {
     color: Colors.disabledText,

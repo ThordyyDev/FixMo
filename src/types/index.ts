@@ -119,3 +119,27 @@ export interface UpdateWorkerServiceInput {
   service_description?: string | null;
 }
 
+/**
+ * FixMo Worker Discovery model mapped to public.worker_discovery view in Supabase.
+ * Read-only view of verified skilled workers.
+ */
+export interface WorkerDiscoveryProfile {
+  worker_id: string;
+  username: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  experience_years: number | null;
+  service_area: string | null;
+  availability_status: WorkerAvailabilityStatus;
+  verification_status: WorkerVerificationStatus;
+  verified_at: string | null;
+  services?: WorkerService[];
+}
+
+export interface WorkerDiscoveryFilter {
+  categoryId?: string | null;
+  serviceArea?: string | null;
+  searchQuery?: string | null;
+}
+
