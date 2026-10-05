@@ -36,7 +36,30 @@ export interface CreateProfileInput {
   full_name?: string | null;
   phone?: string | null;
   avatar_url?: string | null;
-  role?: string;
+  role?: 'seeker' | 'worker';
+}
+
+export interface AdminUpdateWorkerVerificationResult {
+  worker_id: string;
+  verification_status: WorkerVerificationStatus;
+  verified_at: string | null;
+  updated_at: string;
+}
+
+export interface PendingWorkerItem {
+  id: string;
+  bio: string | null;
+  experience_years: number | null;
+  service_area: string | null;
+  availability_status: WorkerAvailabilityStatus;
+  verification_status: WorkerVerificationStatus;
+  created_at: string;
+  profile: {
+    id: string;
+    username: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 export interface UpdateProfileInput {

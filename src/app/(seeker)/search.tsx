@@ -8,12 +8,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import {
   Avatar,
   StatusBadge,
   Card,
   TextInput,
+  Button,
   LoadingIndicator,
   EmptyState,
   ErrorMessage,
@@ -30,6 +32,7 @@ import {
 } from '@/types';
 
 export default function SeekerSearchScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('All');
 
@@ -338,6 +341,29 @@ export default function SeekerSearchScreen() {
                       </View>
                     ) : null}
                   </View>
+
+                  {/* Request Action Button */}
+                  <View style={styles.cardActionRow}>
+                    <Button
+                      title={isAvailable ? 'Request Service' : 'Worker Unavailable'}
+                      variant={isAvailable ? 'primary' : 'outline'}
+                      size="sm"
+                      disabled={!isAvailable}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(seeker)/request',
+                          params: {
+                            workerId: worker.worker_id,
+                            categoryId:
+                              selectedCategoryId !== 'All' &&
+                              worker.services?.some((s) => s.category_id === selectedCategoryId)
+                                ? selectedCategoryId
+                                : undefined,
+                          },
+                        });
+                      }}
+                    />
+                  </View>
                 </Card>
               );
             })}
@@ -517,5 +543,8 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xxs,
     color: Colors.textSecondary,
     fontWeight: Typography.weights.medium,
+  },
+  cardActionRow: {
+    marginTop: Spacing.md,
   },
 });

@@ -192,6 +192,104 @@ export const getWorkersByCategory = async (
 };
 
 /**
+ * Retrieves a single verified worker profile by ID from public.worker_discovery,
+ * along with their offered service categories.
+ * Returns null if the worker does not exist or is not verified.
+ */
+export const getVerifiedWorkerById = async (
+  workerId: string
+): Promise<{ data: WorkerDiscoveryProfile | null; error: Error | null }> => {
+  if (!workerId || !workerId.trim()) {
+    return { data: null, error: new Error('Worker ID is required.') };
+  }
+
+  try {
+    const { data: workerData, error: workerError } = await supabase
+      .from('worker_discovery')
+      .select(`
+        worker_id,
+        username,
+        full_name,
+        avatar_url,
+        bio,
+        experience_years,
+        service_area,
+        availability_status,
+        verification_status,
+        verified_at
+      `)
+      .eq('worker_id', workerId.trim())
+      .maybeSingle();
+
+    if (workerError) {
+      if (__DEV__) {
+        console.warn('[FixMo Discovery] Fetch single worker error:', workerError.message);
+      }
+      return { data: null, error: new Error(sanitizeDiscoveryError(workerError)) };
+    }
+
+    if (!workerData) {
+      return { data: null, error: null };
+    }
+
+    // Fetch services offered by this verified worker
+    const { data: servicesData } = await getWorkerServicesForWorker(workerId.trim());
+
+    const worker: WorkerDiscoveryProfile = {
+      ...(workerData as WorkerDiscoveryProfile),
+      services: servicesData || [],
+    };
+
+    return { data: worker, error: null };
+  } catch (err: unknown) {
+    if (__DEV__) {
+      console.warn('[FixMo Discovery] Unexpected error in getVerifiedWorkerById:', err);
+    }
+    const message = err instanceof Error ? err.message : 'Failed to retrieve worker profile.';
+    return { data: null, error: new Error(message) };
+  }
+};
+
+/**
+ * Batch retrieves verified worker discovery profiles for a list of worker IDs.
+ * Returns a map of worker_id -> WorkerDiscoveryProfile.
+ */
+export const getWorkersByIds = async (
+  workerIds: string[]
+): Promise<Record<string, WorkerDiscoveryProfile>> => {
+  const uniqueIds = Array.from(new Set(workerIds.filter((id) => Boolean(id && id.trim()))));
+  if (uniqueIds.length === 0) return {};
+
+  try {
+    const { data, error } = await supabase
+      .from('worker_discovery')
+      .select(`
+        worker_id,
+        username,
+        full_name,
+        avatar_url,
+        bio,
+        experience_years,
+        service_area,
+        availability_status,
+        verification_status,
+        verified_at
+      `)
+      .in('worker_id', uniqueIds);
+
+    if (error || !data) return {};
+
+    const map: Record<string, WorkerDiscoveryProfile> = {};
+    for (const item of data) {
+      map[item.worker_id] = item as WorkerDiscoveryProfile;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+};
+
+/**
  * Client-side search and category filtering utility.
  * Performs fast, responsive, case-insensitive filtering over loaded workers.
  */

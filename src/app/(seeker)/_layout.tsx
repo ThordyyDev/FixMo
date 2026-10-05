@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
@@ -79,6 +79,20 @@ export default function SeekerLayout() {
               color={color}
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="request"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="request-details"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
     </Tabs>

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   StyleSheet,
@@ -134,6 +134,30 @@ export default function SeekerProfileScreen() {
             leftIcon={<Ionicons name="swap-horizontal" size={18} color={Colors.textInverse} />}
           />
         </View>
+
+        {/* Administrator Portal Card (Visible only when user holds the admin role) */}
+        {profile?.role === 'admin' && (
+          <View style={styles.adminPortalCard}>
+            <View style={styles.adminPortalHeader}>
+              <View style={styles.adminIconBox}>
+                <Ionicons name="shield-checkmark" size={22} color={Colors.success} />
+              </View>
+              <View style={styles.adminTextContainer}>
+                <Text style={styles.adminPortalTitle}>Administrator Portal</Text>
+                <Text style={styles.adminPortalDesc}>
+                  Review worker verification applications, verify credentials, and manage approvals.
+                </Text>
+              </View>
+            </View>
+            <Button
+              title="Open Worker Approvals"
+              variant="outline"
+              size="md"
+              onPress={() => router.push('/(admin)/verifications')}
+              leftIcon={<Ionicons name="shield-outline" size={18} color={Colors.textPrimary} />}
+            />
+          </View>
+        )}
 
         {/* Section: Backend & Database Connection */}
         <View style={styles.sectionContainer}>
@@ -392,5 +416,41 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xxs,
     color: Colors.textTertiary,
     marginTop: 2,
+  },
+  adminPortalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.successBorder,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  adminPortalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  adminIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.successLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminTextContainer: {
+    flex: 1,
+  },
+  adminPortalTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: Colors.textPrimary,
+  },
+  adminPortalDesc: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 18,
   },
 });

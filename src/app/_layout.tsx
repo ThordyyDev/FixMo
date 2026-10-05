@@ -52,6 +52,7 @@ function NavigationGuard() {
       <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="(seeker)" options={{ headerShown: false }} />
       <Stack.Screen name="(worker)" options={{ headerShown: false }} />
+      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
       <Stack.Screen
         name="design-system"
         options={{
